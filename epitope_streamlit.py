@@ -2,8 +2,13 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+# Add a file uploader to allow manual file upload
+uploaded_file = st.file_uploader("Drop raw_data File Here", type=["txt", "csv"], accept_multiple_files=False)
+
+     
 def load_data():
-    df = pd.read_csv('raw_data.txt', delimiter='\t', encoding='ISO-8859-1', skiprows=27)
+    
+    df = pd.read_csv(uploaded_file, delimiter='\t', encoding='ISO-8859-1', skiprows=27)
     df = df[df['Name'].notna()] 
     df = df[~df['Name'].isin(['Blank', 'Empty'])] 
     df = df[df['ID'].notna()] 
@@ -19,74 +24,78 @@ def load_data():
     df = df[df['Signal'] > 0]
     return df, all_df
 
-df, all_df = load_data()
+if uploaded_file is not None:
+         
+    df, all_df = load_data()
 
-st.title("Epitope Mapping App")
+    st.title("Epitope Mapping App")
 
-quantile_value = st.slider('Select Threshold Percentile:', min_value=0.30, max_value=1.0, value=0.80, step=0.05)
+    quantile_value = st.slider('Select Threshold Percentile:', min_value=0.30, max_value=1.0, value=0.80, step=0.05)
 
-df_mean = df.groupby('ID')['Signal'].mean().reset_index()
-threshold = df_mean['Signal'].quantile(quantile_value)
-df_mean['Positive'] = df_mean['Signal'] > threshold
-positive_peptides_ids = df_mean[df_mean['Positive']]['ID'].tolist()
-positive_df = df[df['ID'].isin(positive_peptides_ids)]
+    df_mean = df.groupby('ID')['Signal'].mean().reset_index()
+    threshold = df_mean['Signal'].quantile(quantile_value)
+    df_mean['Positive'] = df_mean['Signal'] > threshold
+    positive_peptides_ids = df_mean[df_mean['Positive']]['ID'].tolist()
+    positive_df = df[df['ID'].isin(positive_peptides_ids)]
 
-# First plot with only positive peptides, color gradient is red with higher signal
-st.markdown("## Plot of Positive Peptides")
-fig1 = px.scatter(positive_df, x='Column', y='Row', color='Signal', color_continuous_scale='Reds', hover_data={'Signal': ':.0f', 'Name': True, 'ID': True})
-st.plotly_chart(fig1)
-
-
-
-threshold_F635 = df['F635 Corrected'].quantile(quantile_value)
-threshold_F532 = df['F532 Corrected'].quantile(quantile_value)
-threshold_F488 = df['F488 Corrected'].quantile(quantile_value)
-
-nanobody_epitopes = df.loc[df['F488 Corrected'] > threshold_F488, 'ID'].unique()
-serum_epitopes = df.loc[df['F635 Corrected'] > threshold_F635, 'ID'].unique()
-common_epitopes = set(nanobody_epitopes).intersection(serum_epitopes)
-
-common_epitopes_df = df[df['ID'].isin(common_epitopes)]
-common_epitopes_df = common_epitopes_df.groupby('ID').agg({'F635 Corrected': 'mean', 'F488 Corrected': 'mean'}).reset_index()
-common_epitopes_df = common_epitopes_df.round(0) # Remove decimals
-common_epitopes_df['F635 Corrected'] = common_epitopes_df['F635 Corrected'].astype(int)
-common_epitopes_df['F488 Corrected'] = common_epitopes_df['F488 Corrected'].astype(int)
-common_epitopes_df = common_epitopes_df.sort_values(by=['F635 Corrected', 'F488 Corrected'], ascending=False)
-# common_epitopes_df[['F635 Corrected', 'F488 Corrected']] = common_epitopes_df[['F635 Corrected', 'F488 Corrected']].format("{:.0f}")
+    # First plot with only positive peptides, color gradient is red with higher signal
+    st.markdown("## Plot of Positive Peptides")
+    fig1 = px.scatter(positive_df, x='Column', y='Row', color='Signal', color_continuous_scale='Reds', hover_data={'Signal': ':.0f', 'Name': True, 'ID': True})
+    st.plotly_chart(fig1)
 
 
 
-st.markdown("## Table of Common Epitopes between nanobody and serum")
+    threshold_F635 = df['F635 Corrected'].quantile(quantile_value)
+    threshold_F532 = df['F532 Corrected'].quantile(quantile_value)
+    threshold_F488 = df['F488 Corrected'].quantile(quantile_value)
+
+    nanobody_epitopes = df.loc[df['F488 Corrected'] > threshold_F488, 'ID'].unique()
+    serum_epitopes = df.loc[df['F635 Corrected'] > threshold_F635, 'ID'].unique()
+    common_epitopes = set(nanobody_epitopes).intersection(serum_epitopes)
+
+    common_epitopes_df = df[df['ID'].isin(common_epitopes)]
+    common_epitopes_df = common_epitopes_df.groupby('ID').agg({'F635 Corrected': 'mean', 'F488 Corrected': 'mean'}).reset_index()
+    common_epitopes_df = common_epitopes_df.round(0) # Remove decimals
+    common_epitopes_df['F635 Corrected'] = common_epitopes_df['F635 Corrected'].astype(int)
+    common_epitopes_df['F488 Corrected'] = common_epitopes_df['F488 Corrected'].astype(int)
+    common_epitopes_df = common_epitopes_df.sort_values(by=['F635 Corrected', 'F488 Corrected'], ascending=False)
+    # common_epitopes_df[['F635 Corrected', 'F488 Corrected']] = common_epitopes_df[['F635 Corrected', 'F488 Corrected']].format("{:.0f}")
 
 
 
-#Download button for the table in FASTA file format
-fasta_data = ""
-for seq_id in common_epitopes_df['ID']:
-    fasta_data += f">{seq_id}\n"
-    fasta_data += f"{seq_id}\n"
+    st.markdown("## Table of Common Epitopes between nanobody and serum")
 
 
-st.download_button(
-label="Download FASTA",
-data=fasta_data,
-file_name='common_epitopes.fasta',
-mime='text/plain'
-)
 
-# CSS to inject contained in a string
-hide_table_row_index = """
-            <style>
-            thead tr th:first-child {display:none}
-            tbody th {display:none}
-            </style>
-            """
-# Inject CSS with Markdown
-st.markdown(hide_table_row_index, unsafe_allow_html=True)
+    #Download button for the table in FASTA file format
+    fasta_data = ""
+    for seq_id in common_epitopes_df['ID']:
+        fasta_data += f">{seq_id}\n"
+        fasta_data += f"{seq_id}\n"
 
-st.table(common_epitopes_df)
 
-# Second plot with all data, color gradient is red with higher signal
-st.markdown("## Plot of All Data")
-fig2 = px.scatter(all_df, x='Column', y='Row', color='Name', hover_data=['Name', 'ID'] )
-st.plotly_chart(fig2)
+    st.download_button(
+    label="Download FASTA",
+    data=fasta_data,
+    file_name='common_epitopes.fasta',
+    mime='text/plain'
+    )
+
+    # CSS to inject contained in a string
+    hide_table_row_index = """
+                <style>
+                thead tr th:first-child {display:none}
+                tbody th {display:none}
+                </style>
+                """
+    # Inject CSS with Markdown
+    st.markdown(hide_table_row_index, unsafe_allow_html=True)
+
+    st.table(common_epitopes_df)
+
+    # Second plot with all data, color gradient is red with higher signal
+    st.markdown("## Plot of All Data")
+    fig2 = px.scatter(all_df, x='Column', y='Row', color='Name', hover_data=['Name', 'ID'] )
+    st.plotly_chart(fig2)
+else:
+    print('Please uploaded a raw_data file.')
