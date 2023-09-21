@@ -1,14 +1,24 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import zipfile
 
 # Add a file uploader to allow manual file upload
-uploaded_file = st.file_uploader("Drop raw_data File Here", type=["txt", "csv"], accept_multiple_files=False)
+# uploaded_file = st.file_uploader("Drop raw_data File Here", type=["txt", "csv"], accept_multiple_files=False)
+uploaded_file= "raw_data.txt"
+# Read the Excel file
+# uploaded_file = pd.read_excel("epitope_mapping.xlsx", engine='openpyxl')
 
+# Save it as a CSV file
+# uploaded_file.to_csv("epitope_mapping.csv", index=False)
      
 def load_data():
     
-    df = pd.read_csv(uploaded_file, delimiter='\t', encoding='ISO-8859-1', skiprows=27)
+    with zipfile.ZipFile('raw_data.zip', 'r') as z:
+        with z.open(uploaded_file) as f:
+            df = pd.read_csv(f, delimiter='\t', encoding='ISO-8859-1')
+
+    # df = pd.read_excel(uploaded_file, skiprows=27, engine='openpyxl')
     df = df[df['Name'].notna()] 
     df = df[~df['Name'].isin(['Blank', 'Empty'])] 
     df = df[df['ID'].notna()] 
